@@ -3,6 +3,8 @@ import * as SecureStore from 'expo-secure-store';
 const ACCESS_TOKEN_KEY = 'aegis_access_token';
 const REFRESH_TOKEN_KEY = 'aegis_refresh_token';
 const USER_INFO_KEY = 'aegis_user_info';
+const ORG_ID_KEY = 'aegis_org_id';
+const WORKSPACE_ID_KEY = 'aegis_workspace_id';
 
 export async function getAccessToken(): Promise<string | null> {
   try {
@@ -19,6 +21,35 @@ export async function getRefreshToken(): Promise<string | null> {
   } catch (error) {
     console.error('Error reading refresh token from SecureStore:', error);
     return null;
+  }
+}
+
+export async function getOrgId(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(ORG_ID_KEY);
+  } catch (error) {
+    return null;
+  }
+}
+
+export async function getWorkspaceId(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(WORKSPACE_ID_KEY);
+  } catch (error) {
+    return null;
+  }
+}
+
+export async function setTenantContext(orgId?: string, workspaceId?: string): Promise<void> {
+  try {
+    if (orgId) {
+      await SecureStore.setItemAsync(ORG_ID_KEY, orgId);
+    }
+    if (workspaceId) {
+      await SecureStore.setItemAsync(WORKSPACE_ID_KEY, workspaceId);
+    }
+  } catch (error) {
+    console.error('Error saving tenant context to SecureStore:', error);
   }
 }
 
@@ -55,6 +86,8 @@ export async function clearAuthTokens(): Promise<void> {
     await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
     await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_INFO_KEY);
+    await SecureStore.deleteItemAsync(ORG_ID_KEY);
+    await SecureStore.deleteItemAsync(WORKSPACE_ID_KEY);
   } catch (error) {
     console.error('Error clearing auth tokens from SecureStore:', error);
   }

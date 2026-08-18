@@ -114,15 +114,95 @@ export type UserPersona =
   | 'CLOUD_ADMIN'
   | 'AUDITOR_EXECUTIVE';
 
+export interface OrganizationContext {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface WorkspaceContext {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: string;
+  roles?: string[];
   persona: UserPersona;
   permissions: string[];
   organizationId?: string;
+  workspaceId?: string;
+  organization?: OrganizationContext;
+  workspace?: WorkspaceContext;
+  emailVerified?: boolean;
+  isMfaEnabled?: boolean;
   avatarUrl?: string;
+}
+
+export interface RegisterParams {
+  organizationName: string;
+  organizationSlug: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface LoginParams {
+  email: string;
+  password?: string;
+}
+
+export interface LoginResult {
+  status?: 'MFA_REQUIRED' | 'SUCCESS';
+  challengeId?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  user?: User | null;
+}
+
+export interface MfaVerifyParams {
+  challengeId: string;
+  code: string;
+}
+
+export interface MfaRecoveryParams {
+  challengeId: string;
+  recoveryCode: string;
+}
+
+export interface MfaStatusResponse {
+  mfaEnabled: boolean;
+}
+
+export interface MfaSetupResponse {
+  secret: string;
+  qrCodeUri: string;
+}
+
+export interface MfaVerifySetupResponse {
+  recoveryCodes: string[];
+}
+
+export interface MeResponse {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  emailVerified?: boolean;
+  isMfaEnabled?: boolean;
+  roles?: string[];
+  permissions?: string[];
+  organization?: OrganizationContext;
+  workspace?: WorkspaceContext;
 }
 
 export interface ForgePlaybook {

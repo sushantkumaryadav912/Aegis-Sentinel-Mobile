@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserPersona } from '../lib/types';
-import { loginUser, logoutUser as logoutApi, LoginParams } from '../lib/api/auth';
+import { User, UserPersona, LoginParams, RegisterParams, LoginResult } from '../lib/types';
+import {
+  loginUser,
+  logoutUser as logoutApi,
+  registerOrganizationUser,
+  verifyMfaChallenge,
+  verifyMfaRecovery,
+  fetchAndSaveUserProfile,
+} from '../lib/api/auth';
 import { getAccessToken, getUserInfo, clearAuthTokens } from '../lib/auth-tokens';
 import {
   checkBiometricSupport,
@@ -24,7 +31,7 @@ export const PERSONA_PROFILES: Record<UserPersona, { roleName: string; permissio
   },
   SOC_ANALYST: {
     roleName: 'SOC Analyst',
-    defaultName: 'David Kim (SOC Lead)',
+    defaultName: 'Sushant Kumar Yadav (SOC Lead)',
     permissions: ['atlas:read', 'sentinel:read', 'sentinel:update', 'prism:investigate', 'oracle:chat', 'watchtower:lookup'],
   },
   SECURITY_ENGINEER: {
@@ -39,7 +46,7 @@ export const PERSONA_PROFILES: Record<UserPersona, { roleName: string; permissio
   },
   AUDITOR_EXECUTIVE: {
     roleName: 'Auditor / Executive',
-    defaultName: 'Rachel Green (Compliance)',
+    defaultName: 'Sushant Kumar Yadav (Compliance)',
     permissions: ['atlas:read', 'audit:read', 'vault:reports', 'prism:read'],
   },
 };
@@ -53,7 +60,14 @@ interface AuthContextType {
   isBiometricSupported: boolean;
   isBiometricEnabled: boolean;
   biometricLabel: string;
-  login: (params: LoginParams) => Promise<void>;
+  mfaChallengeId: string | null;
+  isMfaRequired: boolean;
+  login: (params: LoginParams) => Promise<LoginResult>;
+  verifyMfa: (code: string) => Promise<boolean>;
+  verifyRecoveryCode: (recoveryCode: string) => Promise<boolean>;
+  clearMfaChallenge: () => void;
+  registerOrganization: (data: RegisterParams) => Promise<any>;
+  refreshUserProfile: () => Promise<User | null>;
   loginWithBiometrics: () => Promise<boolean>;
   logout: () => Promise<void>;
   switchPersona: (persona: UserPersona) => void;
@@ -69,7 +83,14 @@ const AuthContext = createContext<AuthContextType>({
   isBiometricSupported: false,
   isBiometricEnabled: true,
   biometricLabel: 'Biometrics',
-  login: async () => {},
+  mfaChallengeId: null,
+  isMfaRequired: false,
+  login: async () => ({ status: 'SUCCESS' }),
+  verifyMfa: async () => false,
+  verifyRecoveryCode: async () => false,
+  clearMfaChallenge: () => {},
+  registerOrganization: async () => {},
+  refreshUserProfile: async () => null,
   loginWithBiometrics: async () => false,
   logout: async () => {},
   switchPersona: () => {},
@@ -84,6 +105,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isBiometricSupported, setIsBiometricSupported] = useState<boolean>(false);
   const [isBiometricEnabled, setIsBiometricEnabled] = useState<boolean>(true);
   const [biometricLabel, setBiometricLabel] = useState<string>('Biometrics');
+  const [mfaChallengeId, setMfaChallengeId] = useState<string | null>(null);
+  const [isMfaRequired, setIsMfaRequired] = useState<boolean>(false);
 
   useEffect(() => {
     async function checkAuthStatus() {
@@ -107,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser({
             ...savedUser,
             persona: personaKey,
-            permissions: profile.permissions,
+            permissions: savedUser.permissions?.length ? savedUser.permissions : profile.permissions,
           });
           setIsAuthenticated(true);
         } else {
@@ -137,43 +160,143 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  const login = async (params: LoginParams) => {
+  const refreshUserProfile = async (): Promise<User | null> => {
+    try {
+      const u = await fetchAndSaveUserProfile();
+      if (u) {
+        const personaKey: UserPersona = (u.persona as UserPersona) && PERSONA_PROFILES[u.persona as UserPersona] ? (u.persona as UserPersona) : 'SOC_ANALYST';
+        const profile = PERSONA_PROFILES[personaKey];
+        const updated = {
+          ...u,
+          persona: personaKey,
+          permissions: u.permissions?.length ? u.permissions : profile.permissions,
+        };
+        setUser(updated);
+        return updated;
+      }
+    } catch (e) {
+      console.error('Failed to refresh user profile:', e);
+    }
+    return user;
+  };
+
+  const login = async (params: LoginParams): Promise<LoginResult> => {
     setIsLoading(true);
+    setMfaChallengeId(null);
+    setIsMfaRequired(false);
     try {
       const authRes = await loginUser(params);
-      const persona: UserPersona = authRes.user.persona || 'SOC_ANALYST';
-      const profile = PERSONA_PROFILES[persona];
-      setUser({
-        ...authRes.user,
-        persona,
-        permissions: profile.permissions,
-      });
-      const updatedCount = await incrementLoginCount();
-      setLoginCount(updatedCount);
-      setIsAuthenticated(true);
+      if (authRes.status === 'MFA_REQUIRED' && authRes.challengeId) {
+        setMfaChallengeId(authRes.challengeId);
+        setIsMfaRequired(true);
+        return authRes;
+      }
+
+      if (authRes.user) {
+        const persona: UserPersona = authRes.user.persona || 'SOC_ANALYST';
+        const profile = PERSONA_PROFILES[persona];
+        setUser({
+          ...authRes.user,
+          persona,
+          permissions: authRes.user.permissions?.length ? authRes.user.permissions : profile.permissions,
+        });
+        const updatedCount = await incrementLoginCount();
+        setLoginCount(updatedCount);
+        setIsAuthenticated(true);
+      }
+      return authRes;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyMfa = async (code: string): Promise<boolean> => {
+    if (!mfaChallengeId) return false;
+    setIsLoading(true);
+    try {
+      const result = await verifyMfaChallenge(mfaChallengeId, code);
+      if (result.user) {
+        const persona: UserPersona = result.user.persona || 'SOC_ANALYST';
+        const profile = PERSONA_PROFILES[persona];
+        setUser({
+          ...result.user,
+          persona,
+          permissions: result.user.permissions?.length ? result.user.permissions : profile.permissions,
+        });
+        const updatedCount = await incrementLoginCount();
+        setLoginCount(updatedCount);
+        setIsAuthenticated(true);
+        setMfaChallengeId(null);
+        setIsMfaRequired(false);
+        return true;
+      }
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyRecoveryCode = async (recoveryCode: string): Promise<boolean> => {
+    if (!mfaChallengeId) return false;
+    setIsLoading(true);
+    try {
+      const result = await verifyMfaRecovery(mfaChallengeId, recoveryCode);
+      if (result.user) {
+        const persona: UserPersona = result.user.persona || 'SOC_ANALYST';
+        const profile = PERSONA_PROFILES[persona];
+        setUser({
+          ...result.user,
+          persona,
+          permissions: result.user.permissions?.length ? result.user.permissions : profile.permissions,
+        });
+        const updatedCount = await incrementLoginCount();
+        setLoginCount(updatedCount);
+        setIsAuthenticated(true);
+        setMfaChallengeId(null);
+        setIsMfaRequired(false);
+        return true;
+      }
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const clearMfaChallenge = () => {
+    setMfaChallengeId(null);
+    setIsMfaRequired(false);
+  };
+
+  const registerOrganization = async (data: RegisterParams): Promise<any> => {
+    setIsLoading(true);
+    try {
+      return await registerOrganizationUser(data);
     } finally {
       setIsLoading(false);
     }
   };
 
   const loginWithBiometrics = async (): Promise<boolean> => {
-    // If loginCount === 0, user cannot login through biometrics (requires first password login)
     if (loginCount < 1 || !isBiometricSupported || !isBiometricEnabled) {
+      return false;
+    }
+    const savedUser = await getUserInfo();
+    if (!savedUser) {
       return false;
     }
     const success = await authenticateBiometric(`Unlock SecOps Session with ${biometricLabel}`);
     if (success) {
-      const savedUser = await getUserInfo();
-      const personaKey: UserPersona = (savedUser?.persona as UserPersona) && PERSONA_PROFILES[savedUser?.persona as UserPersona] ? (savedUser.persona as UserPersona) : 'SOC_ANALYST';
+      const personaKey: UserPersona = (savedUser.persona as UserPersona) && PERSONA_PROFILES[savedUser.persona as UserPersona] ? (savedUser.persona as UserPersona) : 'SOC_ANALYST';
       const profile = PERSONA_PROFILES[personaKey];
       setUser({
-        id: savedUser?.id || 'usr_secops_lead',
-        email: savedUser?.email || 'admin@aegis-sentinel.io',
-        name: savedUser?.name || profile.defaultName,
-        role: profile.roleName,
+        id: savedUser.id,
+        email: savedUser.email,
+        name: savedUser.name || profile.defaultName,
+        role: savedUser.role || profile.roleName,
         persona: personaKey,
-        permissions: profile.permissions,
-        organizationId: savedUser?.organizationId || 'org_aegis_global',
+        permissions: savedUser.permissions?.length ? savedUser.permissions : profile.permissions,
+        organizationId: savedUser.organizationId,
+        workspaceId: savedUser.workspaceId,
       });
       setIsAuthenticated(true);
       return true;
@@ -193,6 +316,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       await clearAuthTokens();
       setUser(null);
+      setMfaChallengeId(null);
+      setIsMfaRequired(false);
       setIsAuthenticated(false);
       setIsLoading(false);
     }
@@ -209,7 +334,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isBiometricSupported,
         isBiometricEnabled,
         biometricLabel,
+        mfaChallengeId,
+        isMfaRequired,
         login,
+        verifyMfa,
+        verifyRecoveryCode,
+        clearMfaChallenge,
+        registerOrganization,
+        refreshUserProfile,
         loginWithBiometrics,
         logout,
         switchPersona,
@@ -222,4 +354,3 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useAuth = () => useContext(AuthContext);
-
