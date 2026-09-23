@@ -7,3 +7,4 @@ export async function simulateNetworkDelay(minMs: number = 400, maxMs: number = 
   const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
   return new Promise((resolve) => setTimeout(resolve, delay));
 }
+

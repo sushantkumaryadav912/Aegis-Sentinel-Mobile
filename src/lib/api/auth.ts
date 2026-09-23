@@ -10,6 +10,32 @@ import {
   MfaSetupResponse,
   MfaVerifySetupResponse,
 } from '../types';
+import { simulateNetworkDelay } from './delay';
+
+const MOCK_AUTH_USER: User = {
+  id: 'usr_01H9X',
+  email: 'sushant.admin@aegis.io',
+  name: 'Sushant Kumar',
+  firstName: 'Sushant',
+  lastName: 'Kumar',
+  role: 'Lead Security Analyst & Cloud Architect',
+  roles: ['ROLE_ORG_ADMIN', 'ROLE_SECOPS_LEAD'],
+  persona: 'SOC_ANALYST',
+  permissions: ['alert:read', 'alert:write', 'system:super-admin', 'sentinel:*', 'oracle:*', 'prism:*', 'forge:*'],
+  organizationId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  workspaceId: 'f8e7d6c5-b4a3-9281-7065-43210fedcba9',
+  organization: {
+    id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    name: 'Enterprise Security Corp',
+    slug: 'enterprise-security',
+  },
+  workspace: {
+    id: 'f8e7d6c5-b4a3-9281-7065-43210fedcba9',
+    name: 'Production Operations',
+    slug: 'prod-ops',
+  },
+  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+};
 
 /**
  * Register Organization & Admin User
@@ -25,262 +51,167 @@ export async function registerOrganizationUser(data: RegisterParams): Promise<an
     }
     throw new Error('Registration failed. Please check network connection.');
   }
+  await simulateNetworkDelay(600, 1050);
+  return {
+    status: 'SUCCESS',
+    message: 'Organization and administrator account registered.',
+    organizationId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  };
 }
 
 /**
  * Legacy register user alias
  */
 export async function registerUser(data: { name: string; email: string; password?: string }): Promise<LoginResult> {
-  const [firstName, ...rest] = (data.name || 'User').split(' ');
-  const lastName = rest.join(' ') || '';
-  const slug = (data.name || 'org').toLowerCase().replace(/[^a-z0-9]/g, '-');
-  
-  return registerOrganizationUser({
-    organizationName: `${data.name || 'Organization'} Corp`,
-    organizationSlug: `${slug}-corp`,
-    workspaceName: 'Production Operations',
-    workspaceSlug: 'prod-ops',
-    email: data.email,
-    password: data.password || '',
-    firstName: firstName || 'User',
-    lastName: lastName || '',
-  }).then(() => loginUser({ email: data.email, password: data.password || '' }));
+  await simulateNetworkDelay(550, 1000);
+  return loginUser({ email: data.email, password: data.password || '' });
 }
 
 /**
  * User Login
- * POST /api/aegis/v1/auth/login
  */
 export async function loginUser({ email, password }: LoginParams): Promise<LoginResult> {
-  try {
-    const res = await apiClient.post('/auth/login', {
-      email,
-      password,
-    });
+  await simulateNetworkDelay(500, 950);
 
-    const data = res.data;
+  const user: User = {
+    ...MOCK_AUTH_USER,
+    email: email || MOCK_AUTH_USER.email,
+    name: email ? email.split('@')[0].toUpperCase() : MOCK_AUTH_USER.name,
+    firstName: email ? email.split('@')[0] : MOCK_AUTH_USER.firstName,
+  };
 
-    // Handle MFA Required challenge response
-    if (data.status === 'MFA_REQUIRED' || data.challengeId) {
-      return {
-        status: 'MFA_REQUIRED',
-        challengeId: data.challengeId,
-      };
-    }
+  const result: LoginResult = {
+    status: 'SUCCESS',
+    user,
+    accessToken: 'mock_jwt_access_token_secops_2026',
+    refreshToken: 'mock_jwt_refresh_token_secops_2026',
+  };
 
-    if (data.accessToken) {
-      await setAuthTokens(data.accessToken, data.refreshToken);
-      const userProfile = await fetchAndSaveUserProfile();
-      return {
-        status: 'SUCCESS',
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        user: userProfile,
-      };
-    }
+  await setAuthTokens(result.accessToken!, result.refreshToken!);
+  await setTenantContext(user.organizationId, user.workspaceId);
+  await setUserInfo(user);
 
-    return data;
-  } catch (err: any) {
-    if (err.response?.data) {
-      throw err.response.data;
-    }
-    // Development / Mock fallback if backend server is unreachable
-    const mockUser: User = {
-      id: 'usr_01H9X',
-      email: email || '',
-      name: email ? email.split('@')[0].toUpperCase() : 'SecOps User',
-      firstName: email ? email.split('@')[0] : 'SecOps',
-      lastName: 'User',
-      role: 'Lead Security Analyst',
-      roles: ['ROLE_ORG_ADMIN'],
-      persona: 'SOC_ANALYST',
-      permissions: ['alert:read', 'alert:write', 'system:super-admin', 'sentinel:*', 'oracle:*', 'prism:*'],
-      organizationId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-      workspaceId: 'f8e7d6c5-b4a3-9281-7065-43210fedcba9',
-      organization: {
-        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        name: 'Enterprise Security Corp',
-        slug: 'enterprise-security',
-      },
-      workspace: {
-        id: 'f8e7d6c5-b4a3-9281-7065-43210fedcba9',
-        name: 'Production Operations',
-        slug: 'prod-ops',
-      },
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    };
-    const mockRes: LoginResult = {
-      status: 'SUCCESS',
-      user: mockUser,
-      accessToken: 'mock_jwt_access_token_secops_2026',
-      refreshToken: 'mock_jwt_refresh_token_secops_2026',
-    };
-    await setAuthTokens(mockRes.accessToken!, mockRes.refreshToken!);
-    await setTenantContext(mockUser.organizationId, mockUser.workspaceId);
-    await setUserInfo(mockUser);
-    return mockRes;
-  }
+  return result;
 }
 
 /**
  * MFA Verify Challenge (TOTP)
- * POST /api/aegis/v1/auth/mfa/verify
  */
 export async function verifyMfaChallenge(challengeId: string, code: string): Promise<LoginResult> {
-  try {
-    const res = await apiClient.post('/auth/mfa/verify', { challengeId, code });
-    const data = res.data;
-    if (data.accessToken) {
-      await setAuthTokens(data.accessToken, data.refreshToken);
-      const userProfile = await fetchAndSaveUserProfile();
-      return {
-        status: 'SUCCESS',
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        user: userProfile,
-      };
-    }
-    return data;
-  } catch (err: any) {
-    if (err.response?.data) {
-      throw err.response.data;
-    }
-    throw new Error('MFA TOTP Verification failed.');
-  }
+  await simulateNetworkDelay(400, 800);
+
+  const result: LoginResult = {
+    status: 'SUCCESS',
+    accessToken: 'mock_jwt_access_token_secops_2026',
+    refreshToken: 'mock_jwt_refresh_token_secops_2026',
+    user: MOCK_AUTH_USER,
+  };
+
+  await setAuthTokens(result.accessToken!, result.refreshToken!);
+  await setUserInfo(MOCK_AUTH_USER);
+  return result;
 }
 
 /**
  * MFA Verify Recovery Code
- * POST /api/aegis/v1/auth/mfa/recovery
  */
 export async function verifyMfaRecovery(challengeId: string, recoveryCode: string): Promise<LoginResult> {
-  try {
-    const res = await apiClient.post('/auth/mfa/recovery', { challengeId, recoveryCode });
-    const data = res.data;
-    if (data.accessToken) {
-      await setAuthTokens(data.accessToken, data.refreshToken);
-      const userProfile = await fetchAndSaveUserProfile();
-      return {
-        status: 'SUCCESS',
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        user: userProfile,
-      };
-    }
-    return data;
-  } catch (err: any) {
-    if (err.response?.data) {
-      throw err.response.data;
-    }
-    throw new Error('MFA Recovery Code verification failed.');
-  }
+  await simulateNetworkDelay(400, 800);
+
+  const result: LoginResult = {
+    status: 'SUCCESS',
+    accessToken: 'mock_jwt_access_token_secops_2026',
+    refreshToken: 'mock_jwt_refresh_token_secops_2026',
+    user: MOCK_AUTH_USER,
+  };
+
+  await setAuthTokens(result.accessToken!, result.refreshToken!);
+  await setUserInfo(MOCK_AUTH_USER);
+  return result;
 }
 
 /**
  * Get User Profile Context
- * GET /api/aegis/v1/auth/me
  */
 export async function getUserProfile(): Promise<MeResponse> {
-  const res = await apiClient.get('/auth/me');
-  return res.data;
+  await simulateNetworkDelay(300, 600);
+  return {
+    id: MOCK_AUTH_USER.id,
+    email: MOCK_AUTH_USER.email,
+    firstName: MOCK_AUTH_USER.firstName,
+    lastName: MOCK_AUTH_USER.lastName,
+    organization: MOCK_AUTH_USER.organization,
+    workspace: MOCK_AUTH_USER.workspace,
+    roles: MOCK_AUTH_USER.roles,
+    permissions: MOCK_AUTH_USER.permissions,
+  };
 }
 
 /**
- * Internal helper to fetch user profile from /auth/me and sync tenant context
+ * Internal helper to fetch user profile and sync tenant context
  */
 export async function fetchAndSaveUserProfile(): Promise<User | null> {
-  try {
-    const me = await getUserProfile();
-    const orgId = me.organization?.id;
-    const wsId = me.workspace?.id;
-    await setTenantContext(orgId, wsId);
-
-    const fullName = [me.firstName, me.lastName].filter(Boolean).join(' ') || me.email;
-    const userObj: User = {
-      id: me.id,
-      email: me.email,
-      name: fullName,
-      firstName: me.firstName,
-      lastName: me.lastName,
-      role: me.roles && me.roles.length > 0 ? me.roles[0].replace('ROLE_', '') : 'SOC Analyst',
-      roles: me.roles || ['ROLE_ORG_ADMIN'],
-      persona: 'SOC_ANALYST',
-      permissions: me.permissions || ['alert:read', 'alert:write'],
-      organizationId: orgId,
-      workspaceId: wsId,
-      organization: me.organization,
-      workspace: me.workspace,
-      emailVerified: me.emailVerified,
-      isMfaEnabled: me.isMfaEnabled,
-    };
-    await setUserInfo(userObj);
-    return userObj;
-  } catch (err) {
-    // If /me fails during offline mode, fallback to cached user info
-    const cached = await getUserInfo();
-    return cached;
-  }
+  await simulateNetworkDelay(250, 500);
+  await setTenantContext(MOCK_AUTH_USER.organizationId, MOCK_AUTH_USER.workspaceId);
+  await setUserInfo(MOCK_AUTH_USER);
+  return MOCK_AUTH_USER;
 }
 
 /**
  * Logout User
  * POST /api/aegis/v1/auth/logout
+ * Get MFA Status
  */
 export async function logoutUser(): Promise<void> {
-  try {
-    const token = await getRefreshToken();
-    if (token) {
-      await apiClient.post('/auth/logout', { refreshToken: token });
-    }
-  } catch (e) {
-    // Ignore network error on logout
-  } finally {
-    await clearAuthTokens();
-  }
+  await simulateNetworkDelay(300, 600);
+  await clearAuthTokens();
 }
 
-/**
- * Verify Email Token
- * POST /api/aegis/v1/auth/verify-email
- */
-export async function verifyEmailToken(token: string): Promise<any> {
-  const res = await apiClient.post('/auth/verify-email', { token });
-  return res.data;
-}
-
-/**
- * Resend Verification Email
- * POST /api/aegis/v1/auth/resend-verification
- */
-export async function resendVerificationEmail(email: string): Promise<any> {
-  const res = await apiClient.post('/auth/resend-verification', { email });
-  return res.data;
-}
-
-/**
- * MFA Management APIs
- */
 export async function getMfaStatus(): Promise<MfaStatusResponse> {
-  const res = await apiClient.get('/auth/mfa/status');
-  return res.data;
+  await simulateNetworkDelay(300, 600);
+  return {
+    mfaEnabled: true,
+  };
+}
+
+export async function setupMfa(): Promise<MfaSetupResponse> {
+  await simulateNetworkDelay(400, 800);
+  return {
+    secret: 'JBSWY3DPEHPK3PXP',
+    qrCodeUri: 'otpauth://totp/AegisSentinel:sushant@aegis.io?secret=JBSWY3DPEHPK3PXP&issuer=AegisSentinel',
+  };
+}
+
+export async function verifySetupMfa(code: string): Promise<MfaVerifySetupResponse> {
+  await simulateNetworkDelay(400, 800);
+  return {
+    recoveryCodes: ['REC-1029-4821', 'REC-5928-1193', 'REC-4819-2048', 'REC-9941-8372'],
+  };
+}
+
+export async function verifyEmailToken(token: string): Promise<any> {
+  await simulateNetworkDelay(400, 700);
+  return { success: true };
+}
+
+export async function resendVerificationEmail(email: string): Promise<any> {
+  await simulateNetworkDelay(400, 700);
+  return { success: true };
 }
 
 export async function initiateMfaSetup(): Promise<MfaSetupResponse> {
-  const res = await apiClient.post('/auth/mfa/setup');
-  return res.data;
+  return setupMfa();
 }
 
 export async function confirmMfaSetup(code: string): Promise<MfaVerifySetupResponse> {
-  const res = await apiClient.post('/auth/mfa/verify-setup', { code });
-  return res.data;
+  return verifySetupMfa(code);
 }
 
 export async function disableMfa(password: string, code: string): Promise<any> {
-  const res = await apiClient.post('/auth/mfa/disable', { password, code });
-  return res.data;
+  await simulateNetworkDelay(400, 700);
+  return { success: true };
 }
 
 export async function regenerateRecoveryCodes(code: string): Promise<MfaVerifySetupResponse> {
-  const res = await apiClient.post('/auth/mfa/regenerate-recovery-codes', { code });
-  return res.data;
+  return verifySetupMfa(code);
 }

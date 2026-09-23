@@ -15,6 +15,7 @@ import {
   ChevronRight,
   UserCheck,
   Info,
+  Cpu,
 } from 'lucide-react-native';
 import { Card } from '../../../src/components/ui/Card';
 import { Badge } from '../../../src/components/ui/Badge';
@@ -27,6 +28,15 @@ const MENU_CATEGORIES = [
   {
     category: 'INTELLIGENCE & INVESTIGATION',
     items: [
+      {
+        id: 'helios',
+        title: 'Helios AI Registry',
+        subtitle: '32 Detection, Correlation, Prism & Forge Models',
+        icon: Cpu,
+        route: '/(dashboard)/(more)/helios',
+        color: '#00e5ff',
+        personaBadge: 'All Users',
+      },
       {
         id: 'watchtower',
         title: 'Watchtower',

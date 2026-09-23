@@ -1,5 +1,7 @@
 import { apiClient } from './client';
 import { OverviewMetrics } from '../types';
+import { MOCK_ALERTS_STORE } from './alerts';
+import { simulateNetworkDelay } from './delay';
 
 export async function fetchOverviewMetrics(): Promise<OverviewMetrics> {
   try {
@@ -115,4 +117,37 @@ export async function fetchOverviewMetrics(): Promise<OverviewMetrics> {
       ],
     };
   }
+  await simulateNetworkDelay(400, 850);
+
+  const critical = MOCK_ALERTS_STORE.filter((a) => a.severity === 'CRITICAL').length;
+  const high = MOCK_ALERTS_STORE.filter((a) => a.severity === 'HIGH').length;
+  const medium = MOCK_ALERTS_STORE.filter((a) => a.severity === 'MEDIUM').length;
+  const low = MOCK_ALERTS_STORE.filter((a) => a.severity === 'LOW').length;
+  const open = MOCK_ALERTS_STORE.filter((a) => a.status === 'OPEN' || a.status === 'IN_PROGRESS').length;
+  const resolved = MOCK_ALERTS_STORE.filter((a) => a.status === 'RESOLVED' || a.status === 'DISMISSED').length;
+
+  return {
+    totalAlerts: 1428 + MOCK_ALERTS_STORE.length,
+    criticalAlerts: 14 + critical,
+    openAlerts: 42 + open,
+    resolvedAlerts: 1386 + resolved,
+    avgResponseTimeMin: 3.8,
+    riskDistribution: {
+      critical: 14 + critical,
+      high: 42 + high,
+      medium: 128 + medium,
+      low: 450 + low,
+    },
+    recentAlerts: MOCK_ALERTS_STORE.slice(0, 5),
+    alertsTimeline: [
+      { timestamp: '00:00', count: 4 },
+      { timestamp: '03:15', count: 18 },
+      { timestamp: '06:00', count: 7 },
+      { timestamp: '09:00', count: 12 },
+      { timestamp: '12:00', count: 24 },
+      { timestamp: '15:00', count: 16 },
+      { timestamp: '18:00', count: 9 },
+      { timestamp: '21:00', count: 6 },
+    ],
+  };
 }
