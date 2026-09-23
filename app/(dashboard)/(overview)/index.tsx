@@ -46,6 +46,7 @@ import { Card } from '../../../src/components/ui/Card';
 import { Badge } from '../../../src/components/ui/Badge';
 import { AlertCard } from '../../../src/components/alerts/AlertCard';
 import { Skeleton } from '../../../src/components/ui/Skeleton';
+import { OverviewScreenSkeleton } from '../../../src/components/layout/ScreenSkeletons';
 import { colors } from '../../../src/theme/colors';
 import { fonts } from '../../../src/theme/typography';
 
@@ -127,6 +128,14 @@ export default function OverviewScreen() {
     transform: [{ translateY: scanY.value * 140 }],
     opacity: 0.35,
   }));
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <OverviewScreenSkeleton />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>

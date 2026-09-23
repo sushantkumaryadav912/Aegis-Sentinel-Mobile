@@ -11,12 +11,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Search, Filter, ShieldAlert } from 'lucide-react-native';
+import { Search, Filter, ShieldAlert, Sparkles } from 'lucide-react-native';
 import { useAlerts } from '../../../src/hooks/useAlerts';
 import { AlertCard } from '../../../src/components/alerts/AlertCard';
 import { Input } from '../../../src/components/ui/Input';
 import { ScreenHeader } from '../../../src/components/layout/ScreenHeader';
 import { EmptyState } from '../../../src/components/layout/EmptyState';
 import { Skeleton } from '../../../src/components/ui/Skeleton';
+import { AlertsScreenSkeleton } from '../../../src/components/layout/ScreenSkeletons';
+import { LogClassifierModal } from '../../../src/components/alerts/LogClassifierModal';
 import { SeverityLevel, AlertStatus } from '../../../src/lib/types';
 import { colors } from '../../../src/theme/colors';
 
@@ -28,6 +31,7 @@ export default function AlertsScreen() {
   const [search, setSearch] = useState('');
   const [selectedSeverity, setSelectedSeverity] = useState<SeverityLevel | 'ALL'>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<AlertStatus | 'ALL'>('ALL');
+  const [classifierVisible, setClassifierVisible] = useState(false);
 
   const { data, isLoading, refetch, isRefetching } = useAlerts({
     search,
@@ -35,12 +39,34 @@ export default function AlertsScreen() {
     status: selectedStatus,
   });
 
+  if (isLoading && !data) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <AlertsScreenSkeleton />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
         <ScreenHeader
           title="SENTINEL CORE"
           subtitle="Real-Time Threat Detection & Incident Stream"
+        />
+
+        {/* AI Log Classifier Action Strip */}
+        <Pressable
+          onPress={() => setClassifierVisible(true)}
+          style={styles.classifyBtn}
+        >
+          <Sparkles size={14} color="#030712" />
+          <Text style={styles.classifyBtnText}>Test AI Log Classifier &amp; Benchmarks</Text>
+        </Pressable>
+
+        <LogClassifierModal
+          visible={classifierVisible}
+          onClose={() => setClassifierVisible(false)}
         />
 
         {/* Search Input */}
@@ -171,5 +197,21 @@ const styles = StyleSheet.create({
   },
   listPadding: {
     paddingBottom: 24,
+  },
+  classifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  classifyBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#030712',
   },
 });

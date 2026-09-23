@@ -39,6 +39,8 @@ import { Badge } from '../../../src/components/ui/Badge';
 import { SeverityBadge } from '../../../src/components/alerts/Badges';
 import { ModuleHeader } from '../../../src/components/layout/ModuleHeader';
 import { Skeleton } from '../../../src/components/ui/Skeleton';
+import { LogsScreenSkeleton } from '../../../src/components/layout/ScreenSkeletons';
+import { simulateNetworkDelay } from '../../../src/lib/api/delay';
 import { colors } from '../../../src/theme/colors';
 import { fonts } from '../../../src/theme/typography';
 
@@ -171,10 +173,21 @@ type ActiveTab = 'INCIDENTS' | 'TIMELINE' | 'PREDICTIONS';
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function PrismScreen() {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('INCIDENTS');
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedIncidentId, setSelectedIncidentId] = useState(PRISM_INCIDENTS[0].id);
+
+  useEffect(() => {
+    let mounted = true;
+    simulateNetworkDelay(400, 750).then(() => {
+      if (mounted) setIsLoading(false);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -189,6 +202,14 @@ export default function PrismScreen() {
   );
 
   const selectedIncident = PRISM_INCIDENTS.find((i) => i.id === selectedIncidentId) ?? PRISM_INCIDENTS[0];
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <LogsScreenSkeleton />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>

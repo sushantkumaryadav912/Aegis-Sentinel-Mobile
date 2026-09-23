@@ -23,7 +23,7 @@ import { useTriggerWorkflow } from '../../../src/hooks/useWorkflows';
 import { Card } from '../../../src/components/ui/Card';
 import { Button } from '../../../src/components/ui/Button';
 import { SeverityBadge, StatusBadge } from '../../../src/components/alerts/Badges';
-import { Skeleton } from '../../../src/components/ui/Skeleton';
+import { AlertDetailScreenSkeleton } from '../../../src/components/layout/ScreenSkeletons';
 import { formatISOTimestamp, getRiskColor } from '../../../src/lib/utils';
 import { colors } from '../../../src/theme/colors';
 import { fonts } from '../../../src/theme/typography';
@@ -39,11 +39,7 @@ export default function AlertDetailScreen() {
   if (isLoading || !alert) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.padding}>
-          <Skeleton height={40} width={120} />
-          <Skeleton height={200} style={{ marginTop: 16 }} />
-          <Skeleton height={150} style={{ marginTop: 16 }} />
-        </View>
+        <AlertDetailScreenSkeleton />
       </SafeAreaView>
     );
   }
