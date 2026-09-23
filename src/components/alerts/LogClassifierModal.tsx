@@ -60,6 +60,8 @@ export function LogClassifierModal({ visible, onClose }: LogClassifierModalProps
   const [logText, setLogText] = useState(PRESETS[0].content);
   const [activePreset, setActivePreset] = useState('0315');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [analysisDurationSec, setAnalysisDurationSec] = useState(0);
   const [result, setResult] = useState<any | null>(null);
 
   const handleSelectPreset = (p: typeof PRESETS[0]) => {
@@ -72,8 +74,23 @@ export function LogClassifierModal({ visible, onClose }: LogClassifierModalProps
     if (!logText.trim()) return;
     setIsAnalyzing(true);
     setResult(null);
+    setElapsedSec(0);
 
     await simulateNetworkDelay(600, 1100);
+    // Pick random duration strictly between 5 and 15 seconds (5000ms - 15000ms)
+    const randomDurationMs = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
+    const durationSeconds = (randomDurationMs / 1000).toFixed(1);
+
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      setElapsedSec(parseFloat(elapsed.toFixed(1)));
+    }, 100);
+
+    await new Promise((resolve) => setTimeout(resolve, randomDurationMs));
+    clearInterval(interval);
+    setElapsedSec(parseFloat(durationSeconds));
+    setAnalysisDurationSec(parseFloat(durationSeconds));
 
     const isBenign = logText.includes('prod-customer-alb') || (logText.includes('200') && !logText.includes('Tor') && !logText.includes('cluster-admin'));
     const isK8s = logText.includes('clusterrolebindings') || logText.includes('cluster-admin');
@@ -202,6 +219,7 @@ export function LogClassifierModal({ visible, onClose }: LogClassifierModalProps
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <ActivityIndicator size="small" color="#030712" />
                   <Text style={styles.runBtnText}>Running Helios Inference...</Text>
+                  <Text style={styles.runBtnText}>Analyzing ({elapsedSec}s)...</Text>
                 </View>
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -247,6 +265,7 @@ export function LogClassifierModal({ visible, onClose }: LogClassifierModalProps
                       </Text>
                     </View>
                     <Text style={styles.confText}>{result.confidence}% Confidence</Text>
+                    <Text style={styles.confText}>{result.confidence}% Conf • {analysisDurationSec}s</Text>
                   </View>
                   <Text style={styles.summaryText}>{result.summary}</Text>
                   <Text style={styles.formulaText}>
