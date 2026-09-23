@@ -109,7 +109,7 @@ export default function RegisterScreen() {
             <View style={{ flex: 1 }}>
               <Input
                 label="First Name"
-                placeholder="Jane"
+                placeholder="First Name"
                 value={firstName}
                 onChangeText={setFirstName}
                 icon={<UserIcon size={18} color={colors.slate[400]} />}
@@ -118,7 +118,7 @@ export default function RegisterScreen() {
             <View style={{ flex: 1 }}>
               <Input
                 label="Last Name"
-                placeholder="Doe"
+                placeholder="Last Name"
                 value={lastName}
                 onChangeText={setLastName}
               />
@@ -127,7 +127,7 @@ export default function RegisterScreen() {
 
           <Input
             label="Work Email"
-            placeholder="admin@acme-cyber.cloud"
+            placeholder="email@email.com"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
