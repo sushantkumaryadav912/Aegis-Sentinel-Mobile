@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Search, Filter, ShieldAlert } from 'lucide-react-native';
 import { Search, Filter, ShieldAlert, Sparkles } from 'lucide-react-native';
 import { useAlerts } from '../../../src/hooks/useAlerts';
 import { AlertCard } from '../../../src/components/alerts/AlertCard';
